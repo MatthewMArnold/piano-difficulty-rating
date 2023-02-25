@@ -1,18 +1,11 @@
-
-
 import csv
 import os
-import sys
 
 import music21
 import numpy as np
 import xgboost
 
-DeepGRU = 0# from approach_attention import DeepGRU
-from loader_representations import get_path, velocity_piece, notes_piece, finger_piece, finger_nakamura_piece, \
-    prob_piece
-import torch
-from torch.nn.utils.rnn import pack_padded_sequence as packer, pad_packed_sequence as padder
+from loader_representations import get_path, velocity_piece, notes_piece, finger_piece, finger_nakamura_piece, prob_piece
 
 from utils import strm2map, load_json, save_json
 
@@ -78,7 +71,10 @@ def an2midi(an):
 
 def save_score_difficulty(alias, output, piece, onset_difficulty, rep, appr):
 
+    header = ['']
+
     is_nakamura = rep in ['prob', 'finger_nakamura']
+
     path_to_save = os.path.join(output, os.path.basename(piece)[:-4] + '.pdf')
     if not is_nakamura:
         r_h_cost = '/'.join(["Fingers", "pianoplayer", os.path.basename(piece)[:-4] + '_rh.txt'])
@@ -139,60 +135,7 @@ def save_score_difficulty(alias, output, piece, onset_difficulty, rep, appr):
             o['element'].style.color = INTERP[diff]
             f = music21.articulations.Fingering(finger)
             music21_structure.articulations = [f] + music21_structure.articulations
-    sf.write('mxl.pdf', fp=path_to_save)
-
-
-# def replicate_embeddings(clf, x, x_lengths):
-#     h, h_last = clf.model.enc(x, x_lengths)
-#     # o_attn = clf['attn'](h, h_last)
-#     h_last.transpose_(1, 0)
-#     # Shape: B x 1 x D_out
-#     # Calculate attentional context
-#     h.transpose_(1, 2)
-#     attention_weights = F.softmax(clf.model.attn.model.attn_ctx(h_last) @ h, dim=0)
-#     return attention_weights
-
-
-def replicate_embeddings(clf, x, x_lengths):
-    x_packed = packer(x, x_lengths.cpu(), batch_first=True)
-
-    # Encode
-    output, _ = clf.gru1(x_packed)
-    output, _ = clf.gru2(output)
-    output, hidden = clf.gru3(output)
-
-    # Pass to attention with the original padding
-    output_padded, _ = padder(output, batch_first=True)
-
-    e = torch.bmm(clf.attention.w(output_padded), hidden[-1:].permute(1, 2, 0))
-    attention_weights = e.softmax(dim=1).detach().cpu().numpy()
-    start = 0
-    end = 8
-    width = end - start
-
-    return np.around((attention_weights - attention_weights.min())/attention_weights.ptp() * width + start).astype(int).squeeze().tolist()
-
-
-def prediction_torch(matrix, model_path):
-    n_features = 88 if "note" in model_path else 10
-    n_grades = 3
-    # Create a DeepGRU neural network model
-    device = 'cuda:0' if torch.cuda.is_available() else 'cpu'
-    # load the model
-    model = DeepGRU(n_features, n_grades, device=device)
-    model.load_state_dict(torch.load(model_path, map_location=torch.device('cpu')))
-    model.eval()
-    # convert to torch
-    # [b, t, values]
-    input = torch.tensor([matrix])
-    input_lengths = torch.tensor([input.shape[1]])
-    y = model(input, input_lengths)
-    y_pred = torch.argmax(y, dim=1)
-    print(y_pred)
-
-    attention_weights = replicate_embeddings(model, input, input_lengths)
-    return attention_weights
-
+    # sf.write('mxl.pdf', fp=path_to_save)
 
 def load_split(split):
     s = load_json("mikrokosmos/splits.json")[str(split)]
@@ -224,46 +167,52 @@ def get_feature_representation(rep):
     return ans
 
 
+def generate_difficulty_xgboost(split, piece):
+    appr = 'xgboost'
+    subset = 'test'
+
+    for rep in ["note"]:# , "finger", "finger_nakamura", "prob", "velocity"]:
+        # variables
+        output = f'feedback/{split}/xgboost/{rep}/{subset}'
+
+        os.makedirs(output, exist_ok=True)
+
+        # Already computed results for this piece
+        if os.path.exists(os.path.join(output, os.path.splitext(os.path.basename(piece))[0] + '.musicxml')):
+            continue
+
+        # Load appropriate model
+
+        # Model trained with window size 9
+        model = f"results/xgboost/rep_{rep}/w9/{split}.pkl"
+
+        print(f'scoring difficulty using model: {model} rep: {rep} on piece: {piece}')
+
+        # load piece with representation path, grade, path_alias, xml
+        feature_representation = get_feature_representation(rep)
+        matrix, onsets = feature_representation(piece, "nak" if rep in ["finger_nakamura", "prob"] else "mikro2")
+
+        print(len(matrix))
+
+        windows = salamizer(matrix, 9)
+        clf = xgboost.XGBClassifier()
+        clf.load_model(model)
+        prediction = clf.predict(windows)
+
+        # get the values per onset
+        # onset_difficulty = get_onset_difficulty(prediction, onsets)
+
+        # save the output
+        # save_score_difficulty("mikro2", output, piece, onset_difficulty, rep, appr)
+
 def export_feedback(split):
     pieces_subsets = load_split(split)
-    # pieces_subsets = {'train': ["mikrokosmos/musicxml/69.xml"], 'test': []}
-    for appr in ["xgboost"]:  # , "deepgru"
-        for subset in ["train", "test"]:
-            pieces = pieces_subsets[subset]
-            for piece in pieces:
-                for rep in ["note", "finger", "finger_nakamura", "prob", "velocity"]:  # ["note", "finger", "finger_nakamura", "velocity", "prob"]:
-                    # variables
-                    output = f'feedback/{split}/{appr}/{rep}/{subset}'
-                    if not os.path.exists(output):
-                        os.makedirs(output)
-                    if '/1.' in piece or os.path.exists(os.path.join(output, os.path.splitext(os.path.basename(piece))[0] + '.musicxml')):
-                        continue
-                    if appr == 'deepgru':
-                        model = f"results/{appr}/split:{split}_epoch:20_rep_{rep}.pkl"
-                    else:
-                        model = f"results/{appr}/rep_{rep}/w9/{split}.pkl"
+    subset = 'test'
+    pieces = pieces_subsets[subset]
+    pieces = [pieces[1]]
 
-                    # load piece with representation path, grade, path_alias, xml
-                    feature_representation = get_feature_representation(rep)
-                    matrix, onsets = feature_representation(piece, "mikro2" if rep not in ["finger_nakamura", "prob"] else "nak", piece)
-
-                    # load the model
-                    if appr == "deepgru":
-                        prediction = prediction_torch(matrix, model)
-                    else:
-                        windows = salamizer(matrix, 9)
-                        clf = xgboost.XGBClassifier()
-                        clf.load_model(model)
-                        prediction = clf.predict(windows)
-                        # else:
-                        #     continue
-
-                    # get the values per onset
-                    onset_difficulty = get_onset_difficulty(prediction, onsets)
-
-                    # save the output
-                    save_score_difficulty("mikro2", output, piece, onset_difficulty, rep, appr)
-
+    for piece in pieces:
+        generate_difficulty_xgboost(split, piece)
 
 def update_json():
     structure = {}
@@ -287,8 +236,7 @@ def save_midis():
 
 
 if __name__ == '__main__':
-    assert len(sys.argv) == 2, "Usage: python3 export_feedback [split]"
-    export_feedback(33)
+    export_feedback(10)
     update_json()
     # save_midis()
 

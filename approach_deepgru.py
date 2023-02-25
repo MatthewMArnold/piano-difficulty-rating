@@ -9,17 +9,13 @@ import sys
 
 import numpy as np
 import pandas as pd
-import sklearn
 import torch
 from matplotlib import pyplot as plt
 from scipy.stats import spearmanr, kendalltau
-from sequentia import Standardize, KNNClassifier, GMMHMM, HMMClassifier
 from sklearn.metrics import confusion_matrix, balanced_accuracy_score
-from sklearn.model_selection import train_test_split
 import seaborn as sns
 from sklearn.preprocessing import minmax_scale
 from tqdm import tqdm
-from sklearn import preprocessing
 import torch.nn.functional as F
 
 import torch

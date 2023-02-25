@@ -14,15 +14,14 @@ import numpy as np
 from utils import load_xmls, load_json, save_json
 
 
-def get_path(alias):
-    if alias == "mikro1":
-        path = "mikrokosmos1"
-    if alias == "mikro2":
-        path = "pianoplayer"
-    if alias == "nak":
-        path = "nakamura"
-    return path
+ALIAS_TO_PATH = {
+    'mikro1': 'mikrokosmos1',
+    'mikro2': 'pianoplayer',
+    'nak': 'nakamura',
+}
 
+def get_path(alias):
+    return ALIAS_TO_PATH[alias]
 
 def rep_raw(alias):
     path_alias = get_path(alias)
@@ -38,9 +37,9 @@ def rep_raw(alias):
         r_h_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_rh.txt'])
         l_h_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_lh.txt'])
         for path_txt, hand in zip([r_h_cost, l_h_cost], ["right_", "left_"]):
-            with open(path_txt) as tsv_file:
-                read_tsv = csv.reader(tsv_file, delimiter="\t")
-                for l in read_tsv:
+            with open(path_txt) as csv_file:
+                read_csv = csv.reader(csv_file, delimiter="\t")
+                for l in read_csv:
                     rep[path][hand + 'velocity'] = rep[path][hand + 'velocity'] + [float(l[8])]
                     rep[path][hand + 'fingers'] = rep[path][hand + 'fingers'] + [abs(int(l[7]))]
     save_json(rep, os.path.join('representations', path_alias, 'rep_raw.json'))
@@ -77,16 +76,16 @@ def finger2index(f):
 
 def velocity_piece(path, alias, xml):
     path_alias = get_path(alias)
-    print(path)
+    # print(path)
     r_h_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_rh.txt'])
     l_h_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_lh.txt'])
 
     intermediate_rep = []
     for path_txt, hand in zip([r_h_cost, l_h_cost], ["right_", "left_"]):
         time_series = []
-        with open(path_txt) as tsv_file:
-            read_tsv = csv.reader(tsv_file, delimiter="\t")
-            for l in read_tsv:
+        with open(path_txt) as csv_file:
+            read_csv = csv.reader(csv_file, delimiter="\t")
+            for l in read_csv:
                 if int(l[7]) != 0:
                     time_series.append((round(float(l[1]), 2), int(l[7]), abs(float(l[8]))))
         time_series = time_series[:-9]
@@ -130,13 +129,13 @@ def rep_velocity(alias):
 def prob_piece(path, alias, xml):
     path_alias = get_path(alias)
 
-    print(path)
+    # print(path)
     PIG_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '.txt'])
 
     time_series = []
-    with open(PIG_cost) as tsv_file:
-        read_tsv = csv.reader(tsv_file, delimiter="\t")
-        for l in list(read_tsv)[1:]:
+    with open(PIG_cost) as csv_file:
+        read_csv = csv.reader(csv_file, delimiter="\t")
+        for l in list(read_csv)[1:]:
             if int(l[7]) != 0:
                 time_series.append((round(float(l[1]), 2), int(l[7]), abs(abs(float(l[8])))))
     time_series = time_series[:-3]
@@ -181,13 +180,13 @@ def rep_d_nakamura(alias):
     path_alias = get_path(alias)
     rep = {}
     for grade, path, xml in load_xmls():
-        print(path, grade)
+        # print(path, grade)
         PIG_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '.txt'])
 
         time_series = []
-        with open(PIG_cost) as tsv_file:
-            read_tsv = csv.reader(tsv_file, delimiter="\t")
-            for l in list(read_tsv)[1:]:
+        with open(PIG_cost) as csv_file:
+            read_csv = csv.reader(csv_file, delimiter="\t")
+            for l in list(read_csv)[1:]:
                 if int(l[7]) != 0:
                     time_series.append((round(float(l[1]), 2), int(l[7]), abs(abs(float(l[8]))), round(float(l[2]), 2)))
         time_series = time_series[:-3]
@@ -221,16 +220,16 @@ def rep_d_nakamura(alias):
 
 def finger_piece(path, alias, xml):
     path_alias = get_path(alias)
-    print(path)
+    # print(path)
     r_h_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_rh.txt'])
     l_h_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_lh.txt'])
 
     intermediate_rep = []
     for path_txt, hand in zip([r_h_cost, l_h_cost], ["right_", "left_"]):
         time_series = []
-        with open(path_txt) as tsv_file:
-            read_tsv = csv.reader(tsv_file, delimiter="\t")
-            for l in read_tsv:
+        with open(path_txt) as csv_file:
+            read_csv = csv.reader(csv_file, delimiter="\t")
+            for l in read_csv:
                 if int(l[7]) != 0:
                     time_series.append((round(float(l[1]), 2), int(l[7]), abs(float(l[8]))))
         time_series = time_series[:-1]
@@ -273,13 +272,13 @@ def rep_finger(alias):
 
 def finger_nakamura_piece(path, alias, xml):
     path_alias = get_path(alias)
-    print(path)
+    # print(path)
     PIG_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '.txt'])
 
     time_series = []
-    with open(PIG_cost) as tsv_file:
-        read_tsv = csv.reader(tsv_file, delimiter="\t")
-        for l in list(read_tsv)[1:]:
+    with open(PIG_cost) as csv_file:
+        read_csv = csv.reader(csv_file, delimiter="\t")
+        for l in list(read_csv)[1:]:
             if int(l[7]) != 0:
                 time_series.append((round(float(l[1]), 2), int(l[7]), abs(abs(float(l[8])))))
     time_series = time_series[:-3]
@@ -319,18 +318,31 @@ def rep_finger_nakamura(alias):
     save_json(rep, os.path.join('representations', get_path(alias), 'rep_finger_nakamura.json'))
 
 
-def notes_piece(path, alias, xml):
-    path_alias = get_path(alias)
-    print(path)
-    r_h_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_rh.txt'])
-    l_h_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_lh.txt'])
+def notes_piece(path, _):
+    '''
+    Extracts notes from the generated PianoPlayer fingering file.
+
+    There must exist PianoPlayer-generated fingering files. If the path to the
+    musicXML file is foobar.xml, fingering files must be named foobar_rh.txt
+    and foobar_lh.txt and must be located in the same directory as the given
+    musicXML file.
+
+    @param path A path to a musicXML file whose notes should be extracted from.
+    @param _ Unused. The user may pass in an alias but pianoplayer is the only
+        acceptable alias.
+    '''
+
+
+    piece_name = os.path.basename(os.path.splitext(path)[0])
+    r_h_cost = '/'.join(["Fingers", 'pianoplayer', piece_name + '_rh.txt'])
+    l_h_cost = '/'.join(["Fingers", 'pianoplayer', piece_name + '_lh.txt'])
 
     intermediate_rep = []
     for path_txt, hand in zip([r_h_cost, l_h_cost], ["right_", "left_"]):
         time_series = []
-        with open(path_txt) as tsv_file:
-            read_tsv = csv.reader(tsv_file, delimiter="\t")
-            for l in read_tsv:
+        with open(path_txt) as csv_file:
+            read_csv = csv.reader(csv_file, delimiter="\t")
+            for l in read_csv:
                 if int(l[7]) != 0:
                     # (onset, note)
                     time_series.append((round(float(l[1]), 2), int(l[3]) - 21))
@@ -357,6 +369,10 @@ def notes_piece(path, alias, xml):
         matrix.append(t)
     return matrix, onsets
 
+
+
+if __name__ == '__main__':
+    notes_piece('test.midi', 1)
 
 def rep_notes(alias):
     rep = {}
@@ -445,16 +461,16 @@ def rep_distances(alias):
 
     rep = {}
     for grade, path, r_h, l_h in load_xmls():
-        print(path, grade)
+        # print(path, grade)
         r_h_cost = '/'.join(["Fingers", path_alias, r_h[:-11] + '_rh.txt'])
         l_h_cost = '/'.join(["Fingers", path_alias, l_h[:-11] + '_lh.txt'])
 
         intermediate_rep = []
         for path_txt, hand in zip([r_h_cost, l_h_cost], ["right_", "left_"]):
             time_series = []
-            with open(path_txt) as tsv_file:
-                read_tsv = csv.reader(tsv_file, delimiter="\t")
-                for l in read_tsv:
+            with open(path_txt) as csv_file:
+                read_csv = csv.reader(csv_file, delimiter="\t")
+                for l in read_csv:
                     if int(l[7]) != 0:
                         time_series.append((round(float(l[1]), 2), int(l[7]), abs(float(l[8])), abs(float(l[3]))))
             if alias == 'version_1.0':
@@ -595,23 +611,3 @@ def load_rep_info(klass):
         data = load_json(path)
         ans = np.array([k for k, x in data.items()])
     return ans
-
-
-
-
-if __name__ == '__main__':
-    # rep_raw("version_1.0")
-    rep_velocity("mikro2")
-    # rep_distances("version_1.0")
-    # load_rep("version_1.0", rep_velocity)
-    # load_rep("version_1.0", rep_velocity)
-    # visualize_note_representation("mikro1")
-    # visualize_note_representation("mikro1")
-    # rep_finger_nakamura("nak")
-    # rep_prob("nak")
-    rep_notes("mikro2")
-    rep_finger("mikro2")
-    # visualize_note_representation("mikro2")
-    # rep_d_nakamura("nak")
-    # visualize_prob_representation("nak")
-    # visualize_finger_representation_nakamura()
