@@ -13,6 +13,11 @@ import numpy as np
 
 from utils import load_xmls, load_json, save_json
 
+import pig_utils
+# onset time, offset time, spelled pitch, onset velocity, offset velocity, finger number, cost, note ID
+
+
+NUM_PITCHES = 88
 
 ALIAS_TO_PATH = {
     'mikro1': 'mikrokosmos1',
@@ -34,9 +39,9 @@ def rep_raw(alias):
             'right_fingers': [],
             'left_fingers': []
         }
-        r_h_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_rh.txt'])
-        l_h_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_lh.txt'])
-        for path_txt, hand in zip([r_h_cost, l_h_cost], ["right_", "left_"]):
+        rh_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_rh.txt'])
+        lh_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_lh.txt'])
+        for path_txt, hand in zip([rh_cost, lh_cost], ["right_", "left_"]):
             with open(path_txt) as csv_file:
                 read_csv = csv.reader(csv_file, delimiter="\t")
                 for l in read_csv:
@@ -77,11 +82,11 @@ def finger2index(f):
 def velocity_piece(path, alias, xml):
     path_alias = get_path(alias)
     # print(path)
-    r_h_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_rh.txt'])
-    l_h_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_lh.txt'])
+    rh_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_rh.txt'])
+    lh_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_lh.txt'])
 
     intermediate_rep = []
-    for path_txt, hand in zip([r_h_cost, l_h_cost], ["right_", "left_"]):
+    for path_txt, hand in zip([rh_cost, lh_cost], ["right_", "left_"]):
         time_series = []
         with open(path_txt) as csv_file:
             read_csv = csv.reader(csv_file, delimiter="\t")
@@ -221,11 +226,11 @@ def rep_d_nakamura(alias):
 def finger_piece(path, alias, xml):
     path_alias = get_path(alias)
     # print(path)
-    r_h_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_rh.txt'])
-    l_h_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_lh.txt'])
+    rh_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_rh.txt'])
+    lh_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_lh.txt'])
 
     intermediate_rep = []
-    for path_txt, hand in zip([r_h_cost, l_h_cost], ["right_", "left_"]):
+    for path_txt, hand in zip([rh_cost, lh_cost], ["right_", "left_"]):
         time_series = []
         with open(path_txt) as csv_file:
             read_csv = csv.reader(csv_file, delimiter="\t")
@@ -330,22 +335,27 @@ def notes_piece(path, _):
     @param path A path to a musicXML file whose notes should be extracted from.
     @param _ Unused. The user may pass in an alias but pianoplayer is the only
         acceptable alias.
+    @return a one hot matrix in the form of a 2D list, where each nested list
+        in the main list contains a vector of possible pitches, and one index
+        in the vector will be set to 1 indicating the pitch played at that time.
+        Left and right hand fingerings will be combined in the matrix and ordered
+        by note onset time.
     '''
-
-
-    piece_name = os.path.basename(os.path.splitext(path)[0])
-    r_h_cost = '/'.join(["Fingers", 'pianoplayer', piece_name + '_rh.txt'])
-    l_h_cost = '/'.join(["Fingers", 'pianoplayer', piece_name + '_lh.txt'])
+    piece_name = os.path.splitext(path)[0]
+    rh_cost = piece_name + '_rh.txt'
+    lh_cost = piece_name + '_lh.txt'
 
     intermediate_rep = []
-    for path_txt, hand in zip([r_h_cost, l_h_cost], ["right_", "left_"]):
+    for path_txt in [rh_cost, lh_cost]:
         time_series = []
         with open(path_txt) as csv_file:
             read_csv = csv.reader(csv_file, delimiter="\t")
             for l in read_csv:
-                if int(l[7]) != 0:
-                    # (onset, note)
-                    time_series.append((round(float(l[1]), 2), int(l[3]) - 21))
+                # If no cost to play the note, don't include in the matrix
+                if int(l[pig_utils.COST_IDX]) != 0:
+                    onset_time = round(float(l[pig_utils.ONSET_TIME_IDX]), 2)
+                    offset_spelled_pitch = int(l[pig_utils.SPELLED_PITCH_IDX]) - 21
+                    time_series.append((onset_time, offset_spelled_pitch))
         intermediate_rep.extend(time_series)
 
     # order by onset and create matrix
@@ -356,7 +366,7 @@ def notes_piece(path, _):
     onsets = []
     while idx < len(intermediate_rep):
         onsets.append(intermediate_rep[idx][0])
-        t = [0.0] * 88
+        t = [0.0] * NUM_PITCHES
         index = intermediate_rep[idx][1]
         t[index] = 1.0
         j = idx + 1
@@ -462,11 +472,11 @@ def rep_distances(alias):
     rep = {}
     for grade, path, r_h, l_h in load_xmls():
         # print(path, grade)
-        r_h_cost = '/'.join(["Fingers", path_alias, r_h[:-11] + '_rh.txt'])
-        l_h_cost = '/'.join(["Fingers", path_alias, l_h[:-11] + '_lh.txt'])
+        rh_cost = '/'.join(["Fingers", path_alias, r_h[:-11] + '_rh.txt'])
+        lh_cost = '/'.join(["Fingers", path_alias, l_h[:-11] + '_lh.txt'])
 
         intermediate_rep = []
-        for path_txt, hand in zip([r_h_cost, l_h_cost], ["right_", "left_"]):
+        for path_txt, hand in zip([rh_cost, lh_cost], ["right_", "left_"]):
             time_series = []
             with open(path_txt) as csv_file:
                 read_csv = csv.reader(csv_file, delimiter="\t")

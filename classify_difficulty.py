@@ -3,21 +3,28 @@ import os
 
 import music21
 import numpy as np
+import argparse
 import xgboost
+import pig_utils
 
 from loader_representations import get_path, velocity_piece, notes_piece, finger_piece, finger_nakamura_piece, prob_piece
 
 from utils import strm2map, load_json, save_json
 
 
-def salamizer(X, win_size=5):
-    X = np.array(X)
-    X_ans = []
-    hop_size = 1
-
-    for i in range(1, X.shape[0] - win_size + 1, hop_size):
-        window = X[i:i + win_size, :].reshape((-1, 1))  # each individual window
-        X_ans.append(window)
+def windowizer(X, win_size=5):
+    '''
+    Starts with a matrix "X" of dimension N x D. Window size is the number of
+    rows viewed at one time by some algorithm. The goal of this function is to
+    convert "X" into a matrix where each row is a vector containing the data
+    that some window sees. For example, given the matrix X = [[1], [2], [3]] and
+    the window size is 2, the returned matrix will be [[1, 2], [2, 3]].
+    '''
+    num_windows = X.shape[0] - win_size + 1
+    X_ans = np.empty((num_windows, win_size * X.shape[1]))
+    for win in range(0, num_windows):
+        window = X[win:win + win_size, :].reshape(-1,)
+        X_ans[win] = window
     X_ans = np.squeeze(np.array(X_ans))
     return X_ans
 
@@ -34,13 +41,13 @@ def save_PIG_difficulty(alias, model, piece, onset_difficulty, rep):
     path_to_save = os.path.join('visualization', model, piece + '.txt')
     r_h_cost = '/'.join(["Fingers", path_alias, piece + '_rh.txt'])
     l_h_cost = '/'.join(["Fingers", path_alias, piece + '_lh.txt'])
-    with open(r_h_cost) as tsv_file:
-        r_h = list(csv.reader(tsv_file, delimiter="\t"))
-    with open(l_h_cost) as tsv_file:
-        l_h = list(csv.reader(tsv_file, delimiter="\t"))
+    with open(r_h_cost) as csv_file:
+        rh = list(csv.reader(csv_file, delimiter="\t"))
+    with open(l_h_cost) as csv_file:
+        lh = list(csv.reader(csv_file, delimiter="\t"))
 
     PIG_content = []
-    for idx, content in enumerate(sorted(r_h + l_h, key=lambda a: float(a[1]))):
+    for idx, content in enumerate(sorted(rh + lh, key=lambda a: float(a[1]))):
         new_content = content
         if content[7] != -1 and round(float(content[1]), 2) in onset_difficulty:
             new_content[0] = idx
@@ -68,61 +75,45 @@ def an2midi(an):
     n = int(an[-1])  # numeric
     return n * 12 + KEY_TO_SEMITONE[a]
 
+def get_fingering_data(piece):
+    name = os.path.splitext(piece)[0]
+    return name + '_rh.txt', name + '_lh.txt'
 
-def save_score_difficulty(alias, output, piece, onset_difficulty, rep, appr):
-
-    header = ['']
-
-    is_nakamura = rep in ['prob', 'finger_nakamura']
-
+def save_score_difficulty(output, piece, onset_difficulty, rep, appr):
     path_to_save = os.path.join(output, os.path.basename(piece)[:-4] + '.pdf')
-    if not is_nakamura:
-        r_h_cost = '/'.join(["Fingers", "pianoplayer", os.path.basename(piece)[:-4] + '_rh.txt'])
-        l_h_cost = '/'.join(["Fingers", "pianoplayer", os.path.basename(piece)[:-4] + '_lh.txt'])
-        with open(r_h_cost) as tsv_file:
-            r_h = list(csv.reader(tsv_file, delimiter="\t"))
-        with open(l_h_cost) as tsv_file:
-            l_h = list(csv.reader(tsv_file, delimiter="\t"))
-        h = sorted(r_h + l_h, key=lambda a: float(a[3]), reverse=True)
-    else:
-        h_cost = '/'.join(["Fingers", "nakamura", os.path.basename(os.path.basename(piece)[:-4]) + '.txt'])
-        with open(h_cost) as tsv_file:
-            all_h = list(csv.reader(tsv_file, delimiter="\t"))[1:]
-        for idx in range(len(all_h)):
-            all_h[idx][3] = an2midi(all_h[idx][3])
-        h = sorted(all_h, key=lambda a: float(a[3]), reverse=True)
+
+    rh_cost, lh_cost = get_fingering_data(piece)
+    with open(rh_cost) as csv_file:
+        rh = list(csv.reader(csv_file, delimiter="\t"))
+    with open(lh_cost) as csv_file:
+        lh = list(csv.reader(csv_file, delimiter="\t"))
+    h = sorted(rh + lh, key=lambda a: float(a[pig_utils.SPELLED_PITCH_IDX]), reverse=True)
+
     r_diff = []
     l_diff = []
 
-    for idx, content in enumerate(sorted(h, key=lambda a: float(a[1]))):
-        if content[6] == '0':
-            if (is_nakamura or content[7] != -1) and round(float(content[1]), 2) in onset_difficulty:
-                r_diff.append((content[7], (round(onset_difficulty[round(float(content[1]), 2)]))))
-            else:
-                r_diff.append((content[7], -1))
+    print(onset_difficulty)
+
+    for content in sorted(h, key=lambda a: float(a[pig_utils.ONSET_TIME_IDX])):
+        onset_time = round(float(content[pig_utils.ONSET_TIME_IDX]), 2)
+        cost = content[pig_utils.COST_IDX]
+
+        difficulty = -1
+
+        if content[pig_utils.FINGER_NUMBER_IDX] == '0':
+            if cost != -1 and onset_time in onset_difficulty:
+                difficulty = round(onset_difficulty[onset_time])
+            r_diff.append((cost, difficulty))
         else:
-            if (is_nakamura or content[7] != -1) and round(float(content[1]), 2) in onset_difficulty:
-                l_diff.append((content[7], round(onset_difficulty[round(float(content[1]), 2)])))
-            else:
-                l_diff.append((content[7], -1))
-    if appr == 'deepgru':
-        INTERP = [
-            '#000061',
-            '#0000cc',
-            '#0000ff',
-            '#3333ff',
-            '#6666ff',
-            '#9999ff',
-            '#b3b3ff',
-            '#ccccff',
-            '#e6e6ff',
-            'white'
-        ]
-    else:
-        green = '#a1de00'
-        yellow = '#f6b100'
-        red = '#e30000'
-        INTERP = [green, yellow, red, 'white']
+            if cost != -1 and onset_time in onset_difficulty:
+                difficulty = round(onset_difficulty[onset_time])
+            l_diff.append((cost, difficulty))
+
+    green = '#a1de00'
+    yellow = '#f6b100'
+    red = '#e30000'
+    INTERP = [green, yellow, red, 'white']
+
     sf = music21.converter.parse(piece)
     rh_om = strm2map(sf.parts[0])
     lh_om = strm2map(sf.parts[1])
@@ -134,8 +125,8 @@ def save_score_difficulty(alias, output, piece, onset_difficulty, rep, appr):
                 music21_structure = o['element']
             o['element'].style.color = INTERP[diff]
             f = music21.articulations.Fingering(finger)
-            music21_structure.articulations = [f] + music21_structure.articulations
-    # sf.write('mxl.pdf', fp=path_to_save)
+            music21_structure.articulations = [f] + music21_structure.articulation
+    sf.write('mxl.pdf', fp=path_to_save)
 
 def load_split(split):
     s = load_json("mikrokosmos/splits.json")[str(split)]
@@ -173,12 +164,12 @@ def generate_difficulty_xgboost(split, piece):
 
     for rep in ["note"]:# , "finger", "finger_nakamura", "prob", "velocity"]:
         # variables
-        output = f'feedback/{split}/xgboost/{rep}/{subset}'
+        output_dir = f'feedback/{split}/xgboost/{rep}/{subset}'
 
-        os.makedirs(output, exist_ok=True)
+        os.makedirs(output_dir, exist_ok=True)
 
         # Already computed results for this piece
-        if os.path.exists(os.path.join(output, os.path.splitext(os.path.basename(piece))[0] + '.musicxml')):
+        if os.path.exists(os.path.join(output_dir, os.path.splitext(os.path.basename(piece))[0] + '.musicxml')):
             continue
 
         # Load appropriate model
@@ -192,27 +183,20 @@ def generate_difficulty_xgboost(split, piece):
         feature_representation = get_feature_representation(rep)
         matrix, onsets = feature_representation(piece, "nak" if rep in ["finger_nakamura", "prob"] else "mikro2")
 
-        print(len(matrix))
+        matrix = np.array(matrix)
+        print(matrix.shape)
 
-        windows = salamizer(matrix, 9)
+        # Window size of trained model is 9
+        windows = windowizer(matrix, 9)
         clf = xgboost.XGBClassifier()
         clf.load_model(model)
         prediction = clf.predict(windows)
 
-        # get the values per onset
-        # onset_difficulty = get_onset_difficulty(prediction, onsets)
+        # get the values per onset (associate onset time with the prediction)
+        onset_difficulty = get_onset_difficulty(prediction, onsets)
 
         # save the output
-        # save_score_difficulty("mikro2", output, piece, onset_difficulty, rep, appr)
-
-def export_feedback(split):
-    pieces_subsets = load_split(split)
-    subset = 'test'
-    pieces = pieces_subsets[subset]
-    pieces = [pieces[1]]
-
-    for piece in pieces:
-        generate_difficulty_xgboost(split, piece)
+        save_score_difficulty(output_dir, piece, onset_difficulty, rep, appr)
 
 def update_json():
     structure = {}
@@ -236,10 +220,13 @@ def save_midis():
 
 
 if __name__ == '__main__':
-    export_feedback(10)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('-file', type=str, required=True)
+    args = parser.parse_args()
+    
+    generate_difficulty_xgboost(10, args.file)
     update_json()
     # save_midis()
-
 
 
 
