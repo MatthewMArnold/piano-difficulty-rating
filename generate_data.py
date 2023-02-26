@@ -1,7 +1,6 @@
 import os
 import argparse
 import music21
-import pianoplayer.core as core
 
 def truncate_midi(midi_file, new_midi_file_dir, trunc_duration):
     '''
@@ -30,37 +29,9 @@ def midi_to_musicxml(midi_file):
         score = music21.converter.parse(midi_file)
         score.write('musicxml', fp=xml_file)
 
-def generate_fingering_from_musicxml(musicxml_file):
-    '''
-    Generates pianoplayer fingering data from the given musicXML file.
-    '''
-    fname = os.path.splitext(musicxml_file)[0]
-    rh_fingering = fname + '_rh.txt'
-    lh_fingering = fname + '_lh.txt'
-
-    if not os.path.exists(rh_fingering) or not os.path.exists(lh_fingering) or True:
-        core.run_annotate(
-            musicxml_file,
-            outputfile=rh_fingering,
-            n_measures=800,
-            depth=9,
-            right_only=True,
-            quiet=False)
-
-        core.run_annotate(
-            musicxml_file,
-            outputfile=lh_fingering,
-            n_measures=800,
-            depth=9,
-            left_only=True,
-            quiet=False)
-
-        print(f"done processing file {musicxml_file}")
-
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('-midi', type=str, default=None)
-    parser.add_argument('-musicxml', type=str, default=None)
     parser.add_argument('-trunc_midi_dir', type=str, help='directory where truncated midi directory will be located', default=None)
     parser.add_argument('-trunc_duration', type=int, help='Truncated duration length, number of measures. If the number of measures is > the midi\'s number of measures, the original midi will be returned', default=None)
     parser.add_argument('--truncate', type=bool, help='truncate the midi file', default=False, action=argparse.BooleanOptionalAction)
@@ -83,8 +54,6 @@ if __name__ == "__main__":
         truncate_midi(args.midi, args.trunc_midi_dir, args.trunc_duration)
     if args.midi is not None:
         midi_to_musicxml(args.midi)
-    elif args.musicxml is not None:
-        generate_fingering_from_musicxml(args.musicxml)
     else:
         print('either -midi or -musicxml must be provided')
         parser.print_usage()

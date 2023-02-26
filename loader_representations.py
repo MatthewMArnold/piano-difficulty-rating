@@ -82,22 +82,25 @@ def finger2index(f):
     return index
 
 
-def velocity_piece(path, alias):
+def velocity_piece(path, _):
     rh_cost, lh_cost = get_fingering_data(path)
 
     intermediate_rep = []
     for path_txt in [rh_cost, lh_cost]:
-        time_series = []
-        with open(path_txt) as csv_file:
-            read_csv = csv.reader(csv_file, delimiter="\t")
-            for l in read_csv:
-                cost = int(l[pig_utils.COST_IDX])
-                
-                if cost != 0:
-                    onset_time = round(float(l[pig_utils.ONSET_TIME_IDX]), 2)
-                    note_idx = abs(float(l[pig_utils.NOTE_IDX]))
-                    time_series.append((onset_time, cost, note_idx))
-        intermediate_rep.extend(time_series)
+        try:
+            time_series = []
+            with open(path_txt) as csv_file:
+                read_csv = csv.reader(csv_file, delimiter="\t")
+                for l in read_csv:
+                    cost = int(l[pig_utils.COST_IDX])
+                    
+                    if cost != 0:
+                        onset_time = round(float(l[pig_utils.ONSET_TIME_IDX]), 2)
+                        note_idx = abs(float(l[pig_utils.NOTE_IDX]))
+                        time_series.append((onset_time, cost, note_idx))
+            intermediate_rep.extend(time_series)
+        except FileNotFoundError as e:
+            print(f'could not find file {path_txt}')
 
     # order by onset and create matrix
     matrix = []
@@ -231,17 +234,20 @@ def finger_piece(path, _):
 
     intermediate_rep = []
     for path_txt in [rh_cost, lh_cost]:
-        time_series = []
-        with open(path_txt) as csv_file:
-            read_csv = csv.reader(csv_file, delimiter="\t")
-            for l in read_csv:
-                cost = int(l[pig_utils.COST_IDX])
-                if cost != 0:
-                    onset_time = round(float(l[pig_utils.ONSET_TIME_IDX]), 2)
-                    note_idx = abs(float(l[pig_utils.NOTE_IDX]))
-                    time_series.append((onset_time, cost, note_idx))
-        time_series = time_series[:-1]
-        intermediate_rep.extend(time_series)
+        try:
+            time_series = []
+            with open(path_txt) as csv_file:
+                read_csv = csv.reader(csv_file, delimiter="\t")
+                for l in read_csv:
+                    cost = int(l[pig_utils.COST_IDX])
+                    if cost != 0:
+                        onset_time = round(float(l[pig_utils.ONSET_TIME_IDX]), 2)
+                        note_idx = abs(float(l[pig_utils.NOTE_IDX]))
+                        time_series.append((onset_time, cost, note_idx))
+            time_series = time_series[:-1]
+            intermediate_rep.extend(time_series)
+        except FileNotFoundError as e:
+            print(f'could not find file {path_txt}')
 
     # order by onset and create matrix
     matrix = []
@@ -347,16 +353,19 @@ def notes_piece(path, _):
 
     intermediate_rep = []
     for path_txt in [rh_cost, lh_cost]:
-        time_series = []
-        with open(path_txt) as csv_file:
-            read_csv = csv.reader(csv_file, delimiter="\t")
-            for l in read_csv:
-                # If no cost to play the note, don't include in the matrix
-                if int(l[pig_utils.COST_IDX]) != 0:
-                    onset_time = round(float(l[pig_utils.ONSET_TIME_IDX]), 2)
-                    offset_spelled_pitch = int(l[pig_utils.SPELLED_PITCH_IDX]) - 21
-                    time_series.append((onset_time, offset_spelled_pitch))
-        intermediate_rep.extend(time_series)
+        try:
+            time_series = []
+            with open(path_txt) as csv_file:
+                read_csv = csv.reader(csv_file, delimiter="\t")
+                for l in read_csv:
+                    # If no cost to play the note, don't include in the matrix
+                    if int(l[pig_utils.COST_IDX]) != 0:
+                        onset_time = round(float(l[pig_utils.ONSET_TIME_IDX]), 2)
+                        offset_spelled_pitch = int(l[pig_utils.SPELLED_PITCH_IDX]) - 21
+                        time_series.append((onset_time, offset_spelled_pitch))
+            intermediate_rep.extend(time_series)
+        except FileNotFoundError as e:
+            print(f'could not find file {path_txt}')
 
     # order by onset and create matrix
     matrix = []

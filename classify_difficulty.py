@@ -101,10 +101,20 @@ def save_score_difficulty(output_dir, piece, onset_difficulty):
     @param onset_difficulty dict mapping onset start to difficulty rating.
     '''
     rh_cost, lh_cost = get_fingering_data(piece)
-    with open(rh_cost) as csv_file:
-        rh = list(csv.reader(csv_file, delimiter='\t'))
-    with open(lh_cost) as csv_file:
-        lh = list(csv.reader(csv_file, delimiter='\t'))
+    try:
+        with open(rh_cost) as csv_file:
+            rh = list(csv.reader(csv_file, delimiter='\t'))
+    except FileNotFoundError as e:
+        print(f'could not find file {rh_cost}')
+        rh = []
+
+    try:
+        with open(lh_cost) as csv_file:
+            lh = list(csv.reader(csv_file, delimiter='\t'))
+    except FileNotFoundError as e:
+        print(f'could not find file {lh_cost}')
+        lh = []
+
     h = sorted(rh + lh, key=lambda a: float(a[pig_utils.SPELLED_PITCH_IDX]), reverse=True)
 
     rh_difficulty = []
@@ -144,8 +154,17 @@ def save_score_difficulty(output_dir, piece, onset_difficulty):
         return '#' + ''.join([hex(x)[2:].zfill(2) for x in c])
 
     score = music21.converter.parse(piece)
-    rh_om = stream2map(score.parts[0])
-    lh_om = stream2map(score.parts[1])
+    try:
+        rh_om = stream2map(score.parts[0])
+    except IndexError as e:
+        rh_om = {}
+        print('no right hand score')
+
+    try:
+        lh_om = stream2map(score.parts[1])
+    except IndexError as e:
+        lh_om = {}
+        print('no left hand score')
 
     def label_notes(om, diff_list):
         for o, (finger, diff) in zip(om, diff_list):
@@ -162,8 +181,9 @@ def save_score_difficulty(output_dir, piece, onset_difficulty):
     label_notes(lh_om, lh_difficulty)
 
     os.makedirs(output_dir, exist_ok=True)
-    mxml_path = os.path.join(output_dir, os.path.splitext(piece)[0] + '.pdf')
+    mxml_path = os.path.join(output_dir, os.path.splitext(os.path.split(piece)[1])[0] + '.pdf')
     score.write('mxl.pdf', fp=mxml_path)
+    print(f'written results to {mxml_path}')
 
 def get_feature_representation(rep):
     if rep == 'note':
