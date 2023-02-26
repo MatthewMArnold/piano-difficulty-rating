@@ -16,6 +16,9 @@ from utils import load_xmls, load_json, save_json
 import pig_utils
 # onset time, offset time, spelled pitch, onset velocity, offset velocity, finger number, cost, note ID
 
+def get_fingering_data(piece):
+    name = os.path.splitext(piece)[0]
+    return name + '_rh.txt', name + '_lh.txt'
 
 NUM_PITCHES = 88
 
@@ -79,21 +82,21 @@ def finger2index(f):
     return index
 
 
-def velocity_piece(path, alias, xml):
-    path_alias = get_path(alias)
-    # print(path)
-    rh_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_rh.txt'])
-    lh_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_lh.txt'])
+def velocity_piece(path, alias):
+    rh_cost, lh_cost = get_fingering_data(path)
 
     intermediate_rep = []
-    for path_txt, hand in zip([rh_cost, lh_cost], ["right_", "left_"]):
+    for path_txt in [rh_cost, lh_cost]:
         time_series = []
         with open(path_txt) as csv_file:
             read_csv = csv.reader(csv_file, delimiter="\t")
             for l in read_csv:
-                if int(l[7]) != 0:
-                    time_series.append((round(float(l[1]), 2), int(l[7]), abs(float(l[8]))))
-        time_series = time_series[:-9]
+                cost = int(l[pig_utils.COST_IDX])
+                
+                if cost != 0:
+                    onset_time = round(float(l[pig_utils.ONSET_TIME_IDX]), 2)
+                    note_idx = abs(float(l[pig_utils.NOTE_IDX]))
+                    time_series.append((onset_time, cost, note_idx))
         intermediate_rep.extend(time_series)
 
     # order by onset and create matrix
@@ -114,8 +117,8 @@ def velocity_piece(path, alias, xml):
             t[index] = intermediate_rep[j][2]
             j += 1
         idx = j
-        # print(t)
         matrix.append(t)
+
     return matrix, onsets
 
 
@@ -134,7 +137,6 @@ def rep_velocity(alias):
 def prob_piece(path, alias, xml):
     path_alias = get_path(alias)
 
-    # print(path)
     PIG_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '.txt'])
 
     time_series = []
@@ -163,7 +165,6 @@ def prob_piece(path, alias, xml):
             t[index] = intermediate_rep[j][2]
             j += 1
         idx = j
-        # print(t)
         matrix.append(t)
 
     return matrix, onsets
@@ -185,7 +186,6 @@ def rep_d_nakamura(alias):
     path_alias = get_path(alias)
     rep = {}
     for grade, path, xml in load_xmls():
-        # print(path, grade)
         PIG_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '.txt'])
 
         time_series = []
@@ -213,7 +213,6 @@ def rep_d_nakamura(alias):
                 t[index] = intermediate_rep[j][2] / (intermediate_rep[j][3] - (intermediate_rep[j][0]))
                 j += 1
             idx = j
-            # print(t)
             matrix.append(t)
         rep[path] = {
             'grade': grade,
@@ -223,20 +222,24 @@ def rep_d_nakamura(alias):
     save_json(rep, os.path.join('representations', path_alias, 'rep_d_nakamura.json'))
 
 
-def finger_piece(path, alias, xml):
-    path_alias = get_path(alias)
-    # print(path)
-    rh_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_rh.txt'])
-    lh_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '_lh.txt'])
+def finger_piece(path, _):
+    '''
+    @return a fingering matrix where each row in the matrix is a 1 hot vector of
+        length 10. A 1 in some index indicates the finger is used to play the note.
+    '''
+    rh_cost, lh_cost = get_fingering_data(path)
 
     intermediate_rep = []
-    for path_txt, hand in zip([rh_cost, lh_cost], ["right_", "left_"]):
+    for path_txt in [rh_cost, lh_cost]:
         time_series = []
         with open(path_txt) as csv_file:
             read_csv = csv.reader(csv_file, delimiter="\t")
             for l in read_csv:
-                if int(l[7]) != 0:
-                    time_series.append((round(float(l[1]), 2), int(l[7]), abs(float(l[8]))))
+                cost = int(l[pig_utils.COST_IDX])
+                if cost != 0:
+                    onset_time = round(float(l[pig_utils.ONSET_TIME_IDX]), 2)
+                    note_idx = abs(float(l[pig_utils.NOTE_IDX]))
+                    time_series.append((onset_time, cost, note_idx))
         time_series = time_series[:-1]
         intermediate_rep.extend(time_series)
 
@@ -258,7 +261,6 @@ def finger_piece(path, alias, xml):
             t[index] = 1.0
             j += 1
         idx = j
-        # print(t)
         matrix.append(t)
 
     return matrix, onsets
@@ -277,7 +279,6 @@ def rep_finger(alias):
 
 def finger_nakamura_piece(path, alias, xml):
     path_alias = get_path(alias)
-    # print(path)
     PIG_cost = '/'.join(["Fingers", path_alias, os.path.basename(xml[:-4]) + '.txt'])
 
     time_series = []
@@ -306,7 +307,6 @@ def finger_nakamura_piece(path, alias, xml):
             t[index] = 1.0
             j += 1
         idx = j
-        # print(t)
         matrix.append(t)
     return matrix, onsets
 
@@ -375,7 +375,6 @@ def notes_piece(path, _):
             t[index] = 1.0
             j += 1
         idx = j
-        # print(t)
         matrix.append(t)
     return matrix, onsets
 
@@ -471,7 +470,6 @@ def rep_distances(alias):
 
     rep = {}
     for grade, path, r_h, l_h in load_xmls():
-        # print(path, grade)
         rh_cost = '/'.join(["Fingers", path_alias, r_h[:-11] + '_rh.txt'])
         lh_cost = '/'.join(["Fingers", path_alias, l_h[:-11] + '_lh.txt'])
 
@@ -523,8 +521,6 @@ def rep_distances(alias):
                     last_semitone_lh = last_semitone
                 j += 1
             idx = j
-            # print(t)
-            # matrix.append([t, d , dt])
             matrix.append(t + d + dt)
         rep[path] = {
             'grade': grade,

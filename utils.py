@@ -39,10 +39,10 @@ def load_xmls():
     return zip(grade, name, xmls)
 
 
-def strm2map(strm):
+def stream2map(strm):
     converted = []
     om = []
-    for o in strm.flat.secondsMap:
+    for o in strm.flatten().secondsMap:
         if o['element'].isClassOrSubclass(('Note',)):
             om.append(o)
         elif o['element'].isClassOrSubclass(('Chord',)):
