@@ -39,7 +39,15 @@ def generate_fingering_from_musicxml(music_file):
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
-    parser.add_argument('-dir', type=str, required=True, help='Path to musicXML or midi file to generate PIG pianoplayer fingerings from')
+    parser.add_argument('-dir', type=str, required=True, help='Path to musicXML or midi file to generate PIG pianoplayer fingerings from. Can also be a directory')
     args = parser.parse_args()
 
-    generate_fingering_from_musicxml(args.dir)
+    if os.path.isdir(args.dir):
+        for root, dirs, files in os.walk(args.dir):
+            for file in files:
+                ext = os.path.splitext(file)[1]
+                if ext == '.midi' or ext == '.xml':
+                    generate_fingering_from_musicxml(os.path.join(root, file))
+
+    else:
+        generate_fingering_from_musicxml(args.dir)
