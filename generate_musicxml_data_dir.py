@@ -1,5 +1,5 @@
 '''
-Generates musicXML data for some provided directory
+Truncates midi file or generates musicXML data for some provided directory.
 '''
 
 import argparse

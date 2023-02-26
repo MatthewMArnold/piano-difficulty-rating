@@ -47,7 +47,10 @@ if __name__ == '__main__':
             for file in files:
                 ext = os.path.splitext(file)[1]
                 if ext == '.midi' or ext == '.xml':
-                    generate_fingering_from_musicxml(os.path.join(root, file))
+                    try:
+                        generate_fingering_from_musicxml(os.path.join(root, file))
+                    except Exception as e:
+                        print(f'failed to generate pianoplayer data for file {file}')
 
     else:
         generate_fingering_from_musicxml(args.dir)

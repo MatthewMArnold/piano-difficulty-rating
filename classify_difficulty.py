@@ -181,7 +181,7 @@ def save_score_difficulty(output_dir, piece, onset_difficulty):
     label_notes(lh_om, lh_difficulty)
 
     os.makedirs(output_dir, exist_ok=True)
-    mxml_path = os.path.join(output_dir, os.path.splitext(os.path.split(piece)[1])[0] + '.pdf')
+    mxml_path = os.path.join(output_dir, os.path.splitext(os.path.epoch(piece)[1])[0] + '.pdf')
     score.write('mxl.pdf', fp=mxml_path)
     print(f'written results to {mxml_path}')
 
@@ -196,9 +196,9 @@ def get_feature_representation(rep):
         raise 'bad representation'
     return ans
 
-def generate_difficulty_xgboost(rep, split, piece, output_dir):
+def generate_difficulty_xgboost(rep, epoch, piece, output_dir):
     # Model trained with window size 9
-    model = f'results/xgboost/rep_{rep}/w9/{split}.pkl'
+    model = f'results/xgboost/rep_{rep}/w9/{epoch}.pkl'
 
     print(f'scoring difficulty using model: {model} rep: {rep} on piece: {piece}')
 
@@ -224,8 +224,8 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('-file', type=str, required=True)
     parser.add_argument('-out_dir', type=str, required=True)
-    parser.add_argument('-split', type=str, default=10, help='can be note, finger, or velocity')
-    parser.add_argument('-rep', type=str, default='note')
+    parser.add_argument('-epoch', type=str, default=10)
+    parser.add_argument('-rep', type=str, default='note', help='can be note, finger, or velocity')
     args = parser.parse_args()
 
-    generate_difficulty_xgboost(args.rep, args.split, args.file, args.out_dir)
+    generate_difficulty_xgboost(args.rep, args.epoch, args.file, args.out_dir)

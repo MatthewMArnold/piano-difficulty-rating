@@ -4,6 +4,9 @@ import music21
 
 def truncate_midi(midi_file, new_midi_file_dir, trunc_duration):
     '''
+    TODO it seems like music21 generated midi files cannot be read properly
+    by pretty midi.
+    
     @param midi_file The midi file to truncate.
     @param new_midi_file_dir The directory where the new midi file will be
         placed. The new file will have the same name as the old midi file
